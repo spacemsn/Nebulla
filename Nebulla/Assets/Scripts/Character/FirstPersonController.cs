@@ -1,4 +1,5 @@
 using Cinemachine;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
@@ -15,9 +16,9 @@ public class FirstPersonController : MonoBehaviour
     public float SpeedChangeRate = 10.0f;
 
     [Space(10)]
-    [Tooltip("The height the player can jump")]
+    [Tooltip("Высота прыжка")]
     public float JumpHeight = 1.2f;
-    [Tooltip("The character uses its own gravity value. The engine default is -9.81f")]
+    [Tooltip("Гравитация")]
     public float Gravity = -15.0f;
 
     [Space(10)]
@@ -46,7 +47,7 @@ public class FirstPersonController : MonoBehaviour
 
     // cinemachine
     private float _cinemachineTargetPitch;
-    [SerializeField] private CinemachineVirtualCamera _virtualCamera; // Ссылка на компонент Cinemachine VirtualCamera
+    [SerializeField] private CinemachineVirtualCamera _virtualCamera; 
 
 
     // player
@@ -61,8 +62,7 @@ public class FirstPersonController : MonoBehaviour
 
     private CharacterController _controller;
     private GameObject _mainCamera;
-
-    private const float _threshold = 0.01f;
+    public Transform _headTarget;
 
     public void OnValidate()
     {
@@ -71,14 +71,12 @@ public class FirstPersonController : MonoBehaviour
 
     private void Awake()
     {
-        // get a reference to our main camera
         if (_mainCamera == null)
         {
             _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
         }
         if (_virtualCamera == null)
-        {
-            // Получаем компонент Cinemachine VirtualCamera из сцены
+        {           
             _virtualCamera = GameObject.FindGameObjectWithTag("VirtualCamera").GetComponent<CinemachineVirtualCamera>();
         }
     }
@@ -106,7 +104,6 @@ public class FirstPersonController : MonoBehaviour
 
     private void GroundCheck()
     {
-        // set sphere position, with offset
         Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
         Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers, QueryTriggerInteraction.Ignore);
     }
@@ -118,15 +115,16 @@ public class FirstPersonController : MonoBehaviour
 
         _cinemachineTargetPitch += -mouseY * RotationSpeed * Time.deltaTime;
         _rotationVelocity = mouseX * RotationSpeed * Time.deltaTime;
-
-        // clamp our pitch rotation
         _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
 
-        // Update Cinemachine camera target pitch
+
         CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, 0.0f, 0.0f);
 
-        // rotate the player left and right
         transform.Rotate(Vector3.up * _rotationVelocity);
+
+        Ray desiredAimRay = _mainCamera.GetComponent<Camera>().ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
+        Vector3 desiredPosition = desiredAimRay.origin + desiredAimRay.direction * 0.7f;
+        _headTarget.position = desiredPosition;
     }
     private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
     {
@@ -143,14 +141,12 @@ public class FirstPersonController : MonoBehaviour
         if (Grounded) Gizmos.color = transparentGreen;
         else Gizmos.color = transparentRed;
 
-        // when selected, draw a gizmo in the position of, and matching radius of, the grounded collider
         Gizmos.DrawSphere(new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z), GroundedRadius);
     }
 
     private void Move()
     {
         var movement = new Vector3(Input.GetAxisRaw("Horizontal"), 0, Input.GetAxisRaw("Vertical"));
-        // set target speed based on move speed, sprint speed and if sprint is pressed
         float targetSpeed = Input.GetKey(KeyCode.LeftShift) ? SprintSpeed : MoveSpeed;
 
         if (movement.magnitude > Mathf.Abs(0.05f))
@@ -160,34 +156,10 @@ public class FirstPersonController : MonoBehaviour
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
             movement = Quaternion.Euler(0f, rotationAngle, 0f) * Vector3.forward;
         }
-
-        // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
-
-        // note: Vector2's == operator uses approximation so is not floating point error prone, and is cheaper than magnitude
-        // if there is no input, set the target speed to 0
         if (movement.magnitude <= 0) targetSpeed = 0.0f;
 
-        // a reference to the players current horizontal velocity
-        float currentHorizontalSpeed = new Vector3(_controller.transform.position.y, 0.0f, _controller.transform.position.z).magnitude;
-
-        float speedOffset = 0.1f;
-
-        //accelerate or decelerate to target speed
-        //if (currentHorizontalSpeed < targetSpeed - speedOffset || currentHorizontalSpeed > targetSpeed + speedOffset)
-        //{
-        //    creates curved result rather than a linear one giving a more organic speed change
-        //     note T in Lerp is clamped, so we don't need to clamp our speed
-        //    _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * 1, Time.deltaTime * SpeedChangeRate);
-
-        //    round speed to 3 decimal places
-        //    _speed = Mathf.Round(_speed * 1000f) / 1000f;
-        //}
-        //else
-        //{
+        
         _speed = targetSpeed;
-        //}
-
-        // move the player
         _controller.Move(movement.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
     }
 
@@ -195,10 +167,8 @@ public class FirstPersonController : MonoBehaviour
     {
         if (Grounded)
         {
-            // reset the fall timeout timer
             _fallTimeoutDelta = FallTimeout;
 
-            // stop our velocity dropping infinitely when grounded
             if (_verticalVelocity < 0.0f)
             {
                 _verticalVelocity = -2f;
@@ -206,15 +176,12 @@ public class FirstPersonController : MonoBehaviour
 
             if (Input.GetKeyDown(KeyCode.Space))
             {
-                // Jump
                 if (_jumpTimeoutDelta <= 0.0f)
                 {
-                    // the square root of H * -2 * G = how much velocity needed to reach desired height
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
                 }
             }
 
-            // jump timeout
             if (_jumpTimeoutDelta >= 0.0f)
             {
                 _jumpTimeoutDelta -= Time.deltaTime;
@@ -222,20 +189,13 @@ public class FirstPersonController : MonoBehaviour
         }
         else
         {
-            // reset the jump timeout timer
             _jumpTimeoutDelta = JumpTimeout;
 
-            // fall timeout
             if (_fallTimeoutDelta >= 0.0f)
             {
                 _fallTimeoutDelta -= Time.deltaTime;
             }
-
-            // if we are not grounded, do not jump
-            //_input.jump = false;
         }
-
-        // apply gravity over time if under terminal (multiply by delta time twice to linearly speed up over time)
         if (_verticalVelocity < _terminalVelocity)
         {
             _verticalVelocity += Gravity * Time.deltaTime;
