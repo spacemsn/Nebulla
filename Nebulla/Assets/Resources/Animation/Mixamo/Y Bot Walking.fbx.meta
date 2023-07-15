@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 69c48aa4c3d81bc4781c92a5fdcce7ac
+guid: 701d88eb675e8f048865d1a1f99f72bd
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
@@ -33,11 +33,11 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: Y Bot Standing Greeting
+      name: Y Bot Walking
       takeName: mixamo.com
       internalID: -203655887218126122
       firstFrame: 0
-      lastFrame: 305
+      lastFrame: 61
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -896,7 +896,7 @@ ModelImporter:
     hasTranslationDoF: 0
     hasExtraRoot: 1
     skeletonHasParents: 1
-  lastHumanDescriptionAvatarSource: {fileID: 9000000, guid: c9a895ec291e0d248a8b23caba280f23,
+  lastHumanDescriptionAvatarSource: {fileID: 9000000, guid: 70f67bd538435db468c2b1ef8d983eeb,
     type: 3}
   autoGenerateAvatarMappingIfUnspecified: 1
   animationType: 3

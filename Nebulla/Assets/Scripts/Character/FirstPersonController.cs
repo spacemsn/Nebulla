@@ -1,5 +1,4 @@
 using Cinemachine;
-using System.Runtime.CompilerServices;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
@@ -47,7 +46,7 @@ public class FirstPersonController : MonoBehaviour
 
     // cinemachine
     private float _cinemachineTargetPitch;
-    [SerializeField] private CinemachineVirtualCamera _virtualCamera; 
+    [SerializeField] private CinemachineVirtualCamera _virtualCamera;
 
 
     // player
@@ -55,6 +54,11 @@ public class FirstPersonController : MonoBehaviour
     private float _rotationVelocity;
     private float _verticalVelocity;
     private float _terminalVelocity = 53.0f;
+    private float _targetSpeed;
+
+    private Vector3 _movement;
+    private float deltaX;
+    private float deltaY;
 
     // timeout deltatime
     private float _jumpTimeoutDelta;
@@ -62,6 +66,7 @@ public class FirstPersonController : MonoBehaviour
 
     private CharacterController _controller;
     private GameObject _mainCamera;
+    private Animator _animator;
     public Transform _headTarget;
 
     public void OnValidate()
@@ -76,7 +81,7 @@ public class FirstPersonController : MonoBehaviour
             _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
         }
         if (_virtualCamera == null)
-        {           
+        {
             _virtualCamera = GameObject.FindGameObjectWithTag("VirtualCamera").GetComponent<CinemachineVirtualCamera>();
         }
     }
@@ -84,6 +89,7 @@ public class FirstPersonController : MonoBehaviour
     private void Start()
     {
         _controller = GetComponent<CharacterController>();
+        _animator = GetComponent<Animator>();
 
         // reset our timeouts on start
         _jumpTimeoutDelta = JumpTimeout;
@@ -100,6 +106,7 @@ public class FirstPersonController : MonoBehaviour
     private void LateUpdate()
     {
         CameraRotation();
+        Animation();
     }
 
     private void GroundCheck()
@@ -114,13 +121,19 @@ public class FirstPersonController : MonoBehaviour
         float mouseY = Input.GetAxis("Mouse Y");
 
         _cinemachineTargetPitch += -mouseY * RotationSpeed * Time.deltaTime;
-        _rotationVelocity = mouseX * RotationSpeed * Time.deltaTime;
+        _rotationVelocity += mouseX * RotationSpeed * Time.deltaTime;
         _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
+        _rotationVelocity = ClampAngle(_rotationVelocity, -30, 30);
 
 
-        CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, 0.0f, 0.0f);
 
-        transform.Rotate(Vector3.up * _rotationVelocity);
+        CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, _rotationVelocity, 0.0f);
+
+
+        if (ClampAngle(_rotationVelocity, -30, 30) <= -30 || ClampAngle(_rotationVelocity, -30, 30) >= 30 || _movement.magnitude > 0)
+        {
+            transform.Rotate(Vector3.up * mouseX * RotationSpeed * Time.deltaTime);
+        }
 
         Ray desiredAimRay = _mainCamera.GetComponent<Camera>().ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
         Vector3 desiredPosition = desiredAimRay.origin + desiredAimRay.direction * 0.7f;
@@ -146,21 +159,24 @@ public class FirstPersonController : MonoBehaviour
 
     private void Move()
     {
-        var movement = new Vector3(Input.GetAxisRaw("Horizontal"), 0, Input.GetAxisRaw("Vertical"));
-        float targetSpeed = Input.GetKey(KeyCode.LeftShift) ? SprintSpeed : MoveSpeed;
+        deltaY = Input.GetAxisRaw("Horizontal");
+        deltaX = Input.GetAxisRaw("Vertical");
 
-        if (movement.magnitude > Mathf.Abs(0.05f))
+        _movement = new Vector3(deltaY, 0, deltaX);
+        _targetSpeed = Input.GetKey(KeyCode.LeftShift) ? SprintSpeed : MoveSpeed;
+
+        if (_movement.magnitude > Mathf.Abs(0.05f))
         {
-            float rotationAngle = Mathf.Atan2(movement.x, movement.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
+            float rotationAngle = Mathf.Atan2(_movement.x, _movement.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
             float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, rotationAngle, ref _rotationVelocity, RotationSpeed);
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
-            movement = Quaternion.Euler(0f, rotationAngle, 0f) * Vector3.forward;
+            _movement = Quaternion.Euler(0f, rotationAngle, 0f) * Vector3.forward;
         }
-        if (movement.magnitude <= 0) targetSpeed = 0.0f;
+        if (_movement.magnitude <= 0) _targetSpeed = 0.0f;
 
         
-        _speed = targetSpeed;
-        _controller.Move(movement.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+        _speed = _targetSpeed;
+        _controller.Move(_movement.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
     }
 
     private void JumpAndGravity()
@@ -199,6 +215,56 @@ public class FirstPersonController : MonoBehaviour
         if (_verticalVelocity < _terminalVelocity)
         {
             _verticalVelocity += Gravity * Time.deltaTime;
+        }
+    }
+
+   private void Animation()
+   {
+        if (_targetSpeed == MoveSpeed)
+        {
+            _animator.SetBool("isWalk", true);
+            if (deltaX > 0)
+            {
+                _animator.SetFloat("Walking X", 1);
+                _animator.SetFloat("Walking", 0);
+            }
+            else if (deltaX < 0)
+            {
+                _animator.SetFloat("Walking X", 0);
+                _animator.SetFloat("Walking", 0);
+            }
+
+            if (deltaY > 0)
+            {
+                _animator.SetFloat("Walking Y", 1);
+                _animator.SetFloat("Walking", 1);
+            }
+            else if (deltaY < 0)
+            {
+                _animator.SetFloat("Walking Y", 0);
+                _animator.SetFloat("Walking", 1);
+            }
+        }
+        else if (_targetSpeed == SprintSpeed)
+        {
+            //_animator.SetBool("isSprint", true);
+            if (deltaX > 0)
+            {
+
+            }
+            else if (deltaX < 0)
+            {
+
+            }
+            else if (_movement.magnitude == 0)
+            {
+
+            }
+        }
+        else if(_targetSpeed == 0 && _movement.magnitude == 0)
+        {
+            _animator.SetBool("isWalk", false);
+            //_animator.SetBool("isSprint", false);
         }
     }
 
