@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: ae69c626765d94847912f145f2218df4
+guid: 91c99629f5dce014e9e97707e3f67ce4
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
@@ -33,11 +33,11 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: Y Bot Walking Backward
+      name: Y Bot Left Strafe Walk
       takeName: mixamo.com
       internalID: -203655887218126122
       firstFrame: 0
-      lastFrame: 73
+      lastFrame: 62
       wrapMode: 0
       orientationOffsetY: 0
       level: 0

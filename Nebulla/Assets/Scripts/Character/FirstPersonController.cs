@@ -10,7 +10,7 @@ public class FirstPersonController : MonoBehaviour
     [Tooltip("Sprint speed of the character in m/s")]
     public float SprintSpeed = 6.0f;
     [Tooltip("Rotation speed of the character")]
-    public float RotationSpeed = 1.0f;
+    public float RotationSpeed = 100.0f;
     [Tooltip("Acceleration and deceleration")]
     public float SpeedChangeRate = 10.0f;
 
@@ -43,15 +43,19 @@ public class FirstPersonController : MonoBehaviour
     public float TopClamp = 90.0f;
     [Tooltip("How far in degrees can you move the camera down")]
     public float BottomClamp = -90.0f;
+    [Tooltip("How far in degrees can you move the camera right")]
+    public float RightClamp = 30.0f;
+    [Tooltip("How far in degrees can you move the camera left")]
+    public float LeftClamp = -30.0f;
 
     // cinemachine
     private float _cinemachineTargetPitch;
     [SerializeField] private CinemachineVirtualCamera _virtualCamera;
 
-
     // player
     private float _speed;
     private float _rotationVelocity;
+    private float smoothVelocity;
     private float _verticalVelocity;
     private float _terminalVelocity = 53.0f;
     private float _targetSpeed;
@@ -59,6 +63,8 @@ public class FirstPersonController : MonoBehaviour
     private Vector3 _movement;
     private float deltaX;
     private float deltaY;
+    private float mouseX;
+    private float mouseY;
 
     // timeout deltatime
     private float _jumpTimeoutDelta;
@@ -117,24 +123,15 @@ public class FirstPersonController : MonoBehaviour
 
     private void CameraRotation()
     {
-        float mouseX = Input.GetAxis("Mouse X");
-        float mouseY = Input.GetAxis("Mouse Y");
+        mouseX = Input.GetAxis("Mouse X");
+        mouseY = Input.GetAxis("Mouse Y");
 
         _cinemachineTargetPitch += -mouseY * RotationSpeed * Time.deltaTime;
         _rotationVelocity += mouseX * RotationSpeed * Time.deltaTime;
         _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
-        _rotationVelocity = ClampAngle(_rotationVelocity, -30, 30);
-
-
+        _rotationVelocity = ClampAngle(_rotationVelocity, LeftClamp, RightClamp);
 
         CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, _rotationVelocity, 0.0f);
-
-
-        if (ClampAngle(_rotationVelocity, -30, 30) <= -30 || ClampAngle(_rotationVelocity, -30, 30) >= 30 || _movement.magnitude > 0)
-        {
-            transform.Rotate(Vector3.up * mouseX * RotationSpeed * Time.deltaTime);
-        }
-
         Ray desiredAimRay = _mainCamera.GetComponent<Camera>().ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
         Vector3 desiredPosition = desiredAimRay.origin + desiredAimRay.direction * 0.7f;
         _headTarget.position = desiredPosition;
@@ -159,8 +156,11 @@ public class FirstPersonController : MonoBehaviour
 
     private void Move()
     {
-        deltaY = Input.GetAxisRaw("Horizontal");
-        deltaX = Input.GetAxisRaw("Vertical");
+        if (Grounded)
+        { 
+            deltaY = Input.GetAxisRaw("Horizontal");
+            deltaX = Input.GetAxisRaw("Vertical");
+        }
 
         _movement = new Vector3(deltaY, 0, deltaX);
         _targetSpeed = Input.GetKey(KeyCode.LeftShift) ? SprintSpeed : MoveSpeed;
@@ -168,13 +168,21 @@ public class FirstPersonController : MonoBehaviour
         if (_movement.magnitude > Mathf.Abs(0.05f))
         {
             float rotationAngle = Mathf.Atan2(_movement.x, _movement.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
-            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, rotationAngle, ref _rotationVelocity, RotationSpeed);
-            transform.rotation = Quaternion.Euler(0f, angle, 0f);
+            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, rotationAngle, ref smoothVelocity, RotationSpeed);
+            //transform.rotation = Quaternion.Euler(0f, angle, 0f);
+            var rotationVelocity = mouseX * RotationSpeed * Time.deltaTime;
+            transform.Rotate(Vector3.up * rotationVelocity);
+
             _movement = Quaternion.Euler(0f, rotationAngle, 0f) * Vector3.forward;
         }
+        //else if((ClampAngle(_rotationVelocity, LeftClamp, RightClamp) <= LeftClamp || ClampAngle(_rotationVelocity, LeftClamp, RightClamp) >= RightClamp))
+        //{
+        //    transform.Rotate(Vector3.up * mouseX * RotationSpeed * Time.deltaTime);
+        //}
+
         if (_movement.magnitude <= 0) _targetSpeed = 0.0f;
 
-        
+
         _speed = _targetSpeed;
         _controller.Move(_movement.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
     }
@@ -218,9 +226,9 @@ public class FirstPersonController : MonoBehaviour
         }
     }
 
-   private void Animation()
-   {
-        if (_targetSpeed == MoveSpeed)
+    private void Animation()
+    {
+        if (_targetSpeed == MoveSpeed && Grounded && _movement.magnitude > 0)
         {
             _animator.SetBool("isWalk", true);
             if (deltaX > 0)
@@ -245,7 +253,7 @@ public class FirstPersonController : MonoBehaviour
                 _animator.SetFloat("Walking", 1);
             }
         }
-        else if (_targetSpeed == SprintSpeed)
+        else if (_targetSpeed == SprintSpeed && Grounded && _movement.magnitude > 0)
         {
             //_animator.SetBool("isSprint", true);
             if (deltaX > 0)
@@ -261,9 +269,20 @@ public class FirstPersonController : MonoBehaviour
 
             }
         }
-        else if(_targetSpeed == 0 && _movement.magnitude == 0)
+        else if (ClampAngle(_rotationVelocity, LeftClamp, RightClamp) <= LeftClamp && _movement.magnitude == 0 && Grounded)
+        {
+            _animator.SetBool("isTurn", true);
+            _animator.SetFloat("Turn", 0);
+        }
+        else if (ClampAngle(_rotationVelocity, LeftClamp, RightClamp) >= RightClamp && _movement.magnitude == 0 && Grounded)
+        {
+            _animator.SetBool("isTurn", true);
+            _animator.SetFloat("Turn", 1);
+        }
+        else if (_targetSpeed == 0 && Grounded && _movement.magnitude == 0)
         {
             _animator.SetBool("isWalk", false);
+            _animator.SetBool("isTurn", false);
             //_animator.SetBool("isSprint", false);
         }
     }

@@ -16,7 +16,7 @@ public class GravityLevel : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if(other.gameObject.tag == "Player")
+        if (other.gameObject.tag == "Player")
         {
             oldJumpHeight = other.GetComponent<FirstPersonController>().JumpHeight;
             oldGravity = other.GetComponent<FirstPersonController>().Gravity;
