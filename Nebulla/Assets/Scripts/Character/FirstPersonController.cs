@@ -230,6 +230,7 @@ public class FirstPersonController : MonoBehaviour
     {
         if (_targetSpeed == MoveSpeed && Grounded && _movement.magnitude > 0)
         {
+            _animator.SetBool("isRun", false);
             _animator.SetBool("isWalk", true);
             if (deltaX > 0)
             {
@@ -255,35 +256,45 @@ public class FirstPersonController : MonoBehaviour
         }
         else if (_targetSpeed == SprintSpeed && Grounded && _movement.magnitude > 0)
         {
-            //_animator.SetBool("isSprint", true);
+            _animator.SetBool("isWalk", false);
+            _animator.SetBool("isRun", true);
             if (deltaX > 0)
             {
-
+                _animator.SetFloat("Running X", 1);
+                _animator.SetFloat("Running", 0);
             }
             else if (deltaX < 0)
             {
-
+                _animator.SetFloat("Running X", 0);
+                _animator.SetFloat("Running", 0);
             }
-            else if (_movement.magnitude == 0)
+
+            if (deltaY > 0)
             {
-
+                _animator.SetFloat("Running Y", 1);
+                _animator.SetFloat("Running", 1);
+            }
+            else if (deltaY < 0)
+            {
+                _animator.SetFloat("Running Y", 0);
+                _animator.SetFloat("Running", 1);
             }
         }
-        else if (ClampAngle(_rotationVelocity, LeftClamp, RightClamp) <= LeftClamp && _movement.magnitude == 0 && Grounded)
-        {
-            _animator.SetBool("isTurn", true);
-            _animator.SetFloat("Turn", 0);
-        }
-        else if (ClampAngle(_rotationVelocity, LeftClamp, RightClamp) >= RightClamp && _movement.magnitude == 0 && Grounded)
-        {
-            _animator.SetBool("isTurn", true);
-            _animator.SetFloat("Turn", 1);
-        }
+        //else if (ClampAngle(_rotationVelocity, LeftClamp, RightClamp) <= LeftClamp && _movement.magnitude == 0 && Grounded)
+        //{
+        //    _animator.SetBool("isTurn", true);
+        //    _animator.SetFloat("Turn", 0);
+        //}
+        //else if (ClampAngle(_rotationVelocity, LeftClamp, RightClamp) >= RightClamp && _movement.magnitude == 0 && Grounded)
+        //{
+        //    _animator.SetBool("isTurn", true);
+        //    _animator.SetFloat("Turn", 1);
+        //}
         else if (_targetSpeed == 0 && Grounded && _movement.magnitude == 0)
         {
             _animator.SetBool("isWalk", false);
             _animator.SetBool("isTurn", false);
-            //_animator.SetBool("isSprint", false);
+            _animator.SetBool("isRun", false);
         }
     }
 
