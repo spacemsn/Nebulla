@@ -2,7 +2,7 @@ using Cinemachine;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
-public class FirstPersonController : MonoBehaviour
+public class ThirdPersonController : MonoBehaviour
 {
     [Header("Player")]
     [Tooltip("Move speed of the character in m/s")]
@@ -10,7 +10,7 @@ public class FirstPersonController : MonoBehaviour
     [Tooltip("Sprint speed of the character in m/s")]
     public float SprintSpeed = 6.0f;
     [Tooltip("Rotation speed of the character")]
-    public float RotationSpeed = 100.0f;
+    public float RotationSpeed = 0.56f;
     [Tooltip("Acceleration and deceleration")]
     public float SpeedChangeRate = 10.0f;
 
@@ -55,8 +55,8 @@ public class FirstPersonController : MonoBehaviour
 
     // player
     private float _speed;
-    private float rotationAngle;
     private float _rotationVelocity;
+    private float smoothVelocity;
     private float _verticalVelocity;
     private float _terminalVelocity = 53.0f;
     private float _targetSpeed;
@@ -72,7 +72,6 @@ public class FirstPersonController : MonoBehaviour
     private float _fallTimeoutDelta;
 
     private CharacterController _controller;
-    private Rigidbody _rb;
     private GameObject _mainCamera;
     private Animator _animator;
     public Transform _headTarget;
@@ -104,7 +103,6 @@ public class FirstPersonController : MonoBehaviour
     private void Start()
     {
         _controller = GetComponent<CharacterController>();
-        _rb = GetComponent<Rigidbody>();
         _animator = GetComponent<Animator>();
 
         // reset our timeouts on start
@@ -145,6 +143,23 @@ public class FirstPersonController : MonoBehaviour
         Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers, QueryTriggerInteraction.Ignore);
     }
 
+    private void CameraRotation()
+    {
+        mouseX = Input.GetAxis("Mouse X");
+        mouseY = Input.GetAxis("Mouse Y");
+
+        _cinemachineTargetPitch += -mouseY * RotationSpeed * Time.deltaTime;
+        _rotationVelocity += mouseX * RotationSpeed * Time.deltaTime;
+        _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
+        _rotationVelocity = ClampAngle(_rotationVelocity, BottomClamp, TopClamp);
+        CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, _rotationVelocity, 0.0f);
+
+        Ray desiredAimRay = _mainCamera.GetComponent<Camera>().ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
+        Vector3 desiredPosition = desiredAimRay.origin + desiredAimRay.direction * 4f;
+        _headTarget.position = desiredPosition;
+
+    }
+
     private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
     {
         if (lfAngle < -360f) lfAngle += 360f;
@@ -162,23 +177,6 @@ public class FirstPersonController : MonoBehaviour
 
         Gizmos.DrawSphere(new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z), GroundedRadius);
     }
-    
-    private void CameraRotation()
-    {
-        mouseX = Input.GetAxis("Mouse X");
-        mouseY = Input.GetAxis("Mouse Y");
-
-
-        _cinemachineTargetPitch += -mouseY * RotationSpeed * Time.deltaTime;
-        _rotationVelocity += mouseX * RotationSpeed * Time.deltaTime;
-        _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
-        _rotationVelocity = ClampAngle(_rotationVelocity, LeftClamp, RightClamp);
-        CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(_cinemachineTargetPitch, _rotationVelocity, 0.0f);
-       
-        Ray desiredAimRay = _mainCamera.GetComponent<Camera>().ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
-        Vector3 desiredPosition = desiredAimRay.origin + desiredAimRay.direction * 0.7f;
-        _headTarget.position = desiredPosition;
-    }
 
     private void Move()
     {
@@ -192,13 +190,10 @@ public class FirstPersonController : MonoBehaviour
 
             if (_movement.magnitude > Mathf.Abs(0.05f))
             {
-                if (_rotationVelocity >= 45 || _rotationVelocity <= -45f)
-                {
-                    rotationAngle = Mathf.Atan2(_movement.x, _movement.z) * Mathf.Rad2Deg + transform.eulerAngles.y;
-                    transform.Rotate(Vector3.up * mouseX * RotationSpeed * Time.deltaTime);
-                }
-                else { rotationAngle = Mathf.Atan2(_movement.x, _movement.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y; }
-                _movement = Quaternion.Euler(0.0f, rotationAngle, 0.0f) * Vector3.forward;
+                float rotationAngle = Mathf.Atan2(_movement.x, _movement.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
+                float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, rotationAngle, ref smoothVelocity, RotationSpeed);
+                transform.rotation = Quaternion.Euler(0f, angle, 0f);
+                _movement = Quaternion.Euler(0f, rotationAngle, 0f) * Vector3.forward;
             }
         }
 
@@ -298,13 +293,24 @@ public class FirstPersonController : MonoBehaviour
                 _animator.SetFloat("Running", 1);
             }
         }
+        //else if (ClampAngle(_rotationVelocity, LeftClamp, RightClamp) <= LeftClamp && _movement.magnitude == 0 && Grounded)
+        //{
+        //    _animator.SetBool("isTurn", true);
+        //    _animator.SetFloat("Turn", 0);
+        //}
+        //else if (ClampAngle(_rotationVelocity, LeftClamp, RightClamp) >= RightClamp && _movement.magnitude == 0 && Grounded)
+        //{
+        //    _animator.SetBool("isTurn", true);
+        //    _animator.SetFloat("Turn", 1);
+        //}
         else if (_movement.magnitude == 0 || !Grounded)
         {
             _animator.SetBool("isWalk", false);
+            //_animator.SetBool("isTurn", false);
             _animator.SetBool("isRun", false);
         }
     }
 
-
-
 }
+
+
